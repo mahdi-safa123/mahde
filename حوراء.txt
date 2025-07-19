@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>نظام شراء نقاط سنتات</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #121212;
+      color: #fff;
+      direction: rtl;
+      padding: 20px;
+      margin: 0;
+    }
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background-color: #1e1e1e;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    }
+    #safe-box {
+      font-size: 40px;
+      font-weight: bold;
+      text-align: center;
+      background-color: #004d40;
+      color: #00e5ff;
+      padding: 30px 20px;
+      border-radius: 15px;
+      margin-bottom: 10px;
+      box-shadow: 0 0 15px #00e5ffaa;
+    }
+    button#resetSafeBtn {
+      background-color: #e53935;
+      margin-bottom: 20px;
+      width: 100%;
+      padding: 15px;
+      font-size: 20px;
+      border-radius: 10px;
+      color: white;
+      cursor: pointer;
+      border: none;
+      transition: background-color 0.3s ease;
+    }
+    button#resetSafeBtn:hover {
+      background-color: #b71c1c;
+    }
+    h2, h3 {
+      text-align: center;
+      color: #4caf50;
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-top: 15px;
+      font-size: 18px;
+    }
+    input, button, textarea {
+      width: 100%;
+      padding: 12px;
+      margin-top: 5px;
+      border: none;
+      border-radius: 7px;
+      font-size: 18px;
+      background-color: #2c2c2c;
+      color: #fff;
+      box-sizing: border-box;
+    }
+    button.convert, button.addSafe, button.deductSafe {
+      background-color: #4caf50;
+      color: #fff;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      margin-top: 20px;
+      border: none;
+    }
+    button.convert:hover, button.addSafe:hover, button.deductSafe:hover {
+      background-color: #388e3c;
+    }
+    #result, #resultSafeOps {
+      margin-top: 20px;
+      font-size: 22px;
+      font-weight: bold;
+      text-align: center;
+      color: #ffd700;
+      min-height: 30px;
+    }
+    #audit-log, #safe-log {
+      margin-top: 30px;
+      background-color: #2a2a2a;
+      padding: 15px;
+      border-radius: 10px;
+      max-height: 220px;
+      overflow-y: auto;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #ddd;
+      box-shadow: inset 0 0 10px #000000aa;
+      white-space: pre-wrap;
+    }
+    .flex-row {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .flex-item {
+      flex: 1 1 300px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="safe-box">💰 القاصة: <span id="safeAmount">10,000,000</span> دينار</div>
+    <button id="resetSafeBtn" onclick="resetSafe()">🔄 تصفير القاصة ومسح السجل</button>
+
+    <h2>💵 محول الدولار إلى الدينار</h2>
+
+    <label for="email">📧 البريد الإلكتروني:</label>
+    <input type="email" id="email" placeholder="name@example.com" />
+
+    <label for="usd">💵 المبلغ بالدولار:</label>
+    <input type="number" id="usd" placeholder="أدخل المبلغ بالدولار" />
+
+    <button class="convert" onclick="convert()">تحويل وخصم من القاصة</button>
+
+    <div id="result"></div>
+
+    <div class="flex-row">
+      <div class="flex-item">
+        <h3>➕ إضافة رصيد إلى القاصة</h3>
+        <label for="addAmount">المبلغ:</label>
+        <input type="number" id="addAmount" placeholder="أدخل مبلغ الإضافة" />
+        <label for="addSource">المسؤول:</label>
+        <input type="text" id="addSource" placeholder="اسم المحاسب أو المصدر" />
+        <button class="addSafe" onclick="addSafe()">إضافة رصيد</button>
+      </div>
+      <div class="flex-item">
+        <h3>➖ خصم رصيد من القاصة</h3>
+        <label for="deductAmount">المبلغ:</label>
+        <input type="number" id="deductAmount" placeholder="أدخل مبلغ الخصم" />
+        <label for="deductSource">المسؤول:</label>
+        <input type="text" id="deductSource" placeholder="اسم المحاسب أو المسؤول" />
+        <label for="deductReason">السبب:</label>
+        <textarea id="deductReason" placeholder="سبب الخصم" rows="2"></textarea>
+        <button class="deductSafe" onclick="deductSafe()">خصم رصيد</button>
+      </div>
+    </div>
+
+    <div id="resultSafeOps"></div>
+
+    <h3>📋 سجل العمليات على القاصة (وارد / صادر)</h3>
+    <div id="safe-log"></div>
+
+    <h3>📋 سجل التدقيق</h3>
+    <div id="audit-log"></div>
+  </div>
+
+  <script>
+    let safeAmount = 10000000;
+    let safeLogEntries = [];
+    let auditLogEntries = [];
+
+    // تحميل البيانات من LocalStorage عند بدء التشغيل
+    function loadData() {
+      const storedSafeAmount = localStorage.getItem("safeAmount");
+      if (storedSafeAmount !== null) {
+        safeAmount = parseFloat(storedSafeAmount);
+      }
+
+      const storedSafeLog = localStorage.getItem("safeLogEntries");
+      if (storedSafeLog) {
+        safeLogEntries = JSON.parse(storedSafeLog);
+        renderSafeLog();
+      }
+
+      const storedAuditLog = localStorage.getItem("auditLogEntries");
+      if (storedAuditLog) {
+        auditLogEntries = JSON.parse(storedAuditLog);
+        renderAuditLog();
+      }
+
+      const storedEmail = localStorage.getItem("email");
+      if (storedEmail) {
+        document.getElementById("email").value = storedEmail;
+      }
+
+      updateSafeDisplay();
+    }
+
+    // حفظ البيانات في LocalStorage
+    function saveData() {
+      localStorage.setItem("safeAmount", safeAmount);
+      localStorage.setItem("safeLogEntries", JSON.stringify(safeLogEntries));
+      localStorage.setItem("auditLogEntries", JSON.stringify(auditLogEntries));
+      localStorage.setItem("email", document.getElementById("email").value.trim());
+    }
+
+    function updateSafeDisplay() {
+      document.getElementById("safeAmount").textContent = safeAmount.toLocaleString();
+    }
+
+    function renderSafeLog() {
+      const safeLog = document.getElementById("safe-log");
+      safeLog.innerHTML = "";
+      safeLogEntries.forEach(entry => {
+        const div = document.createElement("div");
+        div.textContent = entry;
+        safeLog.appendChild(div);
+      });
+    }
+
+    function renderAuditLog() {
+      const auditLog = document.getElementById("audit-log");
+      auditLog.innerHTML = "";
+      auditLogEntries.forEach(entry => {
+        const div = document.createElement("div");
+        div.textContent = entry;
+        auditLog.appendChild(div);
+      });
+    }
+
+    function convert() {
+      const usdInput = document.getElementById("usd");
+      const emailInput = document.getElementById("email");
+      const resultDiv = document.getElementById("result");
+
+      const usd = parseFloat(usdInput.value);
+      const email = emailInput.value.trim();
+      const rate = 1320;
+
+      if (isNaN(usd) || usd <= 0) {
+        alert("يرجى إدخال مبلغ دولار صحيح أكبر من صفر.");
+        return;
+      }
+      if (!email) {
+        alert("يرجى إدخال البريد الإلكتروني.");
+        return;
+      }
+
+      const iqd = usd * rate;
+
+      if (iqd > safeAmount) {
+        alert("❌ لا يوجد رصيد كافي في القاصة.");
+        return;
+      }
+
+      safeAmount -= iqd;
+      updateSafeDisplay();
+
+      resultDiv.textContent = `المبلغ بالدينار: ${iqd.toLocaleString()} دينار`;
+
+      const now = new Date().toLocaleString('ar-EG');
+      const newLogEntry = `📧 ${email} - 💵 ${usd} دولار = ${iqd.toLocaleString()} دينار 🕒 ${now}`;
+
+      auditLogEntries.unshift(newLogEntry);
+      renderAuditLog();
+
+      saveData();
+
+      usdInput.value = "";
+      emailInput.value = "";
+    }
+
+    function addSafe() {
+      const addAmountInput = document.getElementById("addAmount");
+      const addSourceInput = document.getElementById("addSource");
+      const resultSafeOps = document.getElementById("resultSafeOps");
+
+      const amount = parseFloat(addAmountInput.value);
+      const source = addSourceInput.value.trim();
+
+      if (isNaN(amount) || amount <= 0) {
+        alert("يرجى إدخال مبلغ إضافة صحيح أكبر من صفر.");
+        return;
+      }
+      if (!source) {
+        alert("يرجى إدخال اسم المسؤول أو المصدر.");
+        return;
+      }
+
+      safeAmount += amount;
+      updateSafeDisplay();
+
+      const now = new Date().toLocaleString('ar-EG');
+      const logEntry = `➕ وارد: ${amount.toLocaleString()} دينار - المسؤول: ${source} 🕒 ${now}`;
+      safeLogEntries.unshift(logEntry);
+      renderSafeLog();
+
+      resultSafeOps.textContent = `✅ تم إضافة ${amount.toLocaleString()} دينار إلى القاصة.`;
+
+      addAmountInput.value = "";
+      addSourceInput.value = "";
+
+      saveData();
+    }
+
+    function deductSafe() {
+      const deductAmountInput = document.getElementById("deductAmount");
+      const deductSourceInput = document.getElementById("deductSource");
+      const deductReasonInput = document.getElementById("deductReason");
+      const resultSafeOps = document.getElementById("resultSafeOps");
+
+      const amount = parseFloat(deductAmountInput.value);
+      const source = deductSourceInput.value.trim();
+      const reason = deductReasonInput.value.trim();
+
+      if (isNaN(amount) || amount <= 0) {
+        alert("يرجى إدخال مبلغ خصم صحيح أكبر من صفر.");
+        return;
+      }
+      if (!source) {
+        alert("يرجى إدخال اسم المسؤول.");
+        return;
+      }
+      if (!reason) {
+        alert("يرجى إدخال سبب الخصم.");
+        return;
+      }
+      if (amount > safeAmount) {
+        alert("❌ لا يوجد رصيد كافي في القاصة للخصم.");
+        return;
+      }
+
+      safeAmount -= amount;
+      updateSafeDisplay();
+
+      const now = new Date().toLocaleString('ar-EG');
+      const logEntry = `➖ صادر: ${amount.toLocaleString()} دينار - المسؤول: ${source} - السبب: ${reason} 🕒 ${now}`;
+      safeLogEntries.unshift(logEntry);
+      renderSafeLog();
+
+      resultSafeOps.textContent = `✅ تم خصم ${amount.toLocaleString()} دينار من القاصة.`;
+
+      deductAmountInput.value = "";
+      deductSourceInput.value = "";
+      deductReasonInput.value = "";
+
+      saveData();
+    }
+
+    function resetSafe() {
+      if (confirm("هل أنت متأكد من تصفير القاصة ومسح جميع السجلات؟ هذه العملية لا يمكن التراجع عنها.")) {
+        safeAmount = 0;
+        safeLogEntries = [];
+        auditLogEntries = [];
+        updateSafeDisplay();
+        renderSafeLog();
+        renderAuditLog();
+        saveData();
+        alert("✅ تم تصفير القاصة ومسح السجلات.");
+      }
+    }
+
+    // تحميل البيانات عند بدء الصفحة
+    loadData();
+  </script>
+</body>
+</html>
